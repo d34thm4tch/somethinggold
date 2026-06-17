@@ -1,0 +1,39 @@
+name: Gold Mean-Reversion Bot
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes, matches the strategy's candle resolution
+  workflow_dispatch:          # lets you trigger a manual test run from the GitHub Actions tab
+
+permissions:
+  contents: write             # needed so the workflow can commit the updated trade log
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run trading bot (single check-and-act cycle)
+        env:
+          CAPITAL_API_KEY: ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER: ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_PASSWORD: ${{ secrets.CAPITAL_PASSWORD }}
+        run: python gold_mean_reversion_bot.py
+
+      - name: Commit updated trade log (if changed)
+        run: |
+          git config user.name "gold-bot"
+          git config user.email "gold-bot@users.noreply.github.com"
+          git add gold_trades_log.csv
+          git diff --cached --quiet || git commit -m "Update trade log [skip ci]"
+          git push
