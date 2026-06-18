@@ -2,7 +2,7 @@ name: Gold Mean-Reversion Bot
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # every 15 minutes, matches the strategy's candle resolution
+    - cron: '1,6,11,16,21,26,31,36,41,46,51,56 * * * *'   # every 5 min, offset off :00/:15/:30/:45 to dodge GitHub's busiest scheduling slots
   workflow_dispatch:          # lets you trigger a manual test run from the GitHub Actions tab
 
 permissions:
@@ -30,14 +30,10 @@ jobs:
           CAPITAL_PASSWORD: ${{ secrets.CAPITAL_PASSWORD }}
         run: python gold_mean_reversion_bot.py
 
-      - name: Commit updated trade log (if changed)
+      - name: Commit updated logs (if changed)
         run: |
           git config user.name "gold-bot"
           git config user.email "gold-bot@users.noreply.github.com"
-          if [ -f gold_trades_log.csv ]; then
-            git add gold_trades_log.csv
-            git diff --cached --quiet || git commit -m "Update trade log [skip ci]"
-            git push
-          else
-            echo "No trade log yet (no position opened/closed this run) - nothing to commit."
-          fi
+          git add gold_trades_log.csv gold_bot_heartbeat.csv 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Update logs [skip ci]"
+          git push
