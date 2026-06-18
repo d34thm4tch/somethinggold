@@ -1,4 +1,4 @@
-name: Gold Mean-Reversion Bot
+name: Gold Mean-Reversion Bot v1
 
 on:
   schedule:
