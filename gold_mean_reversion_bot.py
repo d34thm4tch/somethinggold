@@ -75,6 +75,13 @@ HEARTBEAT_FILE = "gold_bot_heartbeat.csv"
 # Note: scheduling is handled externally now (e.g. a GitHub Actions cron job
 # every 15 minutes), not by an internal sleep loop. See run_once() below.
 
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+
+ALERT_USERS = [
+    "588755111426392104",
+    "466903836200796162",
+]
+
 # ---------------------------------------------------------------------------
 # SESSION HANDLING (tokens expire after 10 min of inactivity)
 # ---------------------------------------------------------------------------
@@ -110,6 +117,19 @@ class CapitalSession:
 
 
 session = CapitalSession()
+
+def send_discord_message(message):
+    if not DISCORD_WEBHOOK_URL:
+        return
+
+    try:
+        requests.post(
+            DISCORD_WEBHOOK_URL,
+            json={"content": message},
+            timeout=10,
+        )
+    except Exception as e:
+        print(f"Discord webhook error: {e}")
 
 # ---------------------------------------------------------------------------
 # MARKET / EPIC DISCOVERY  (run once with --find-epic)
@@ -191,6 +211,7 @@ def get_open_position():
 def open_position(direction, current_price, atr):
     stop_distance = atr * STOP_LOSS_ATR_MULTIPLIER
     profit_distance = atr * TAKE_PROFIT_ATR_MULTIPLIER
+
     if direction == "BUY":
         stop_level = current_price - stop_distance
         profit_level = current_price + profit_distance
@@ -205,12 +226,39 @@ def open_position(direction, current_price, atr):
         "stopLevel": round(stop_level, 2),
         "profitLevel": round(profit_level, 2),
     }
-    resp = requests.post(f"{BASE_URL}/positions", headers=session.headers(), json=payload)
+
+    resp = requests.post(
+        f"{BASE_URL}/positions",
+        headers=session.headers(),
+        json=payload
+    )
+
     resp.raise_for_status()
+
     deal_ref = resp.json().get("dealReference")
-    print(f"[{datetime.now()}] Opened {direction} at ~{current_price:.2f} "
-          f"(stop={round(stop_level,2)}, profit={round(profit_level,2)}, ATR={round(atr,2)}) (ref {deal_ref})")
+
+    print(
+        f"[{datetime.now()}] Opened {direction} at ~{current_price:.2f} "
+        f"(stop={round(stop_level,2)}, "
+        f"profit={round(profit_level,2)}, "
+        f"ATR={round(atr,2)}) "
+        f"(ref {deal_ref})"
+    )
+
     log_trade(direction, current_price, "OPEN")
+
+    mentions = " ".join([f"<@{uid}>" for uid in ALERT_USERS])
+
+    send_discord_message(
+        f"{mentions}\n\n"
+        f"🟢 NEW GOLD TRADE\n\n"
+        f"Direction: {direction}\n"
+        f"Price: {current_price:.2f}\n"
+        f"ATR: {atr:.2f}\n"
+        f"Stop: {round(stop_level, 2)}\n"
+        f"Take Profit: {round(profit_level, 2)}"
+    )
+
     return deal_ref
 
 
@@ -218,8 +266,21 @@ def close_position(position):
     deal_id = position["position"]["dealId"]
     resp = requests.delete(f"{BASE_URL}/positions/{deal_id}", headers=session.headers())
     resp.raise_for_status()
-    print(f"[{datetime.now()}] Closed position {deal_id}")
-    log_trade(position["position"]["direction"], position["position"]["level"], "CLOSE")
+    direction = position["position"]["direction"]
+level = position["position"]["level"]
+
+print(f"[{datetime.now()}] Closed position {deal_id}")
+log_trade(direction, level, "CLOSE")
+
+mentions = " ".join([f"<@{uid}>" for uid in ALERT_USERS])
+
+send_discord_message(
+    f"{mentions}\n\n"
+    f"🔴 GOLD POSITION CLOSED\n\n"
+    f"Direction: {direction}\n"
+    f"Entry Level: {level}"
+)
+    
 
 # ---------------------------------------------------------------------------
 # LOGGING
@@ -276,6 +337,13 @@ def run_once():
         position = get_open_position()
 
         print(f"[{datetime.now()}] Price={current_price:.2f}  RSI={rsi}  ATR={atr}")
+        send_discord_message(
+    f"🤖 Gold Bot Check\n\n"
+    f"Price: {current_price:.2f}\n"
+    f"RSI: {rsi:.2f}\n"
+    f"ATR: {atr:.2f}\n"
+    f"Position Open: {'YES' if position else 'NO'}"
+)
         write_heartbeat(current_price, rsi, position)
 
         if position is None:
