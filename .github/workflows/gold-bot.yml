@@ -2,8 +2,8 @@ name: Gold Mean-Reversion Bot v1
 
 on:
   schedule:
-    - cron: '1,6,11,16,21,26,31,36,41,46,51,56 * * * *'   # every 5 min, offset off :00/:15/:30/:45 to dodge GitHub's busiest scheduling slots
-  workflow_dispatch:          # lets you trigger a manual test run from the GitHub Actions tab
+    - cron: '2,17,32,47 * * * *'
+  workflow_dispatch:     # lets you trigger a manual test run from the GitHub Actions tab
 
 permissions:
   contents: write             # needed so the workflow can commit the updated trade log
